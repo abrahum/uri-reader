@@ -1,9 +1,7 @@
 #[test]
 fn uri_test() {
     use super::*;
-    println!(
-        "{:?}",
-        uri_parse("file:///C:/example/file/").unwrap().path()
-    );
+    let uri = uri_parse(r#"file:///C:/example/file/"#).unwrap();
+    println!("{:?}", uri2path(&uri));
     println!("{:?}", uri_parse("base64://abababab").unwrap().authority());
 }

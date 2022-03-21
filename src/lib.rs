@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod error;
 mod http;
 mod test;
@@ -9,7 +11,11 @@ use hyper::http::Error as HttpError;
 use hyper::Uri;
 use std::{collections::HashMap, str::FromStr};
 
-pub async fn uget<K, V>(s: &str, headers: HashMap<K, V>) -> Result<Vec<u8>, UReadError>
+pub async fn uget(s: &str) -> Result<Vec<u8>, UReadError> {
+    uget_with_headers::<&str, &str>(s, [].into()).await
+}
+
+pub async fn uget_with_headers<K, V>(s: &str, headers: HashMap<K, V>) -> Result<Vec<u8>, UReadError>
 where
     HeaderName: TryFrom<K>,
     <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
@@ -40,9 +46,20 @@ pub fn b64(uri: Uri) -> Result<Vec<u8>, UReadError> {
 
 pub async fn file(uri: Uri) -> Result<Vec<u8>, UReadError> {
     use tokio::{fs::File, io::AsyncReadExt};
-    let path = std::path::PathBuf::from(uri.path());
+    let path = uri2path(&uri);
     let mut file = File::open(path).await?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf).await?;
     Ok(buf)
+}
+
+fn uri2path(uri: &Uri) -> std::path::PathBuf {
+    match uri.authority().and_then(|a| Some(a.as_str())) {
+        Some("_") | None => std::path::PathBuf::from(&uri.path()[1..]),
+        Some(a) => {
+            let mut path = std::path::PathBuf::from(a);
+            path.push(uri.path());
+            path
+        }
+    }
 }
