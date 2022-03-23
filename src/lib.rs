@@ -9,10 +9,19 @@ use http::{http, http_client, https_client};
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::Error as HttpError;
 use hyper::Uri;
+use std::path::Path;
 use std::{collections::HashMap, str::FromStr};
 
 pub async fn uget(s: &str) -> Result<Vec<u8>, UReadError> {
     uget_with_headers::<&str, &str>(s, [].into()).await
+}
+
+#[derive(Debug)]
+pub enum Scheme<'a> {
+    Http(Uri),
+    Https(Uri),
+    Base64(&'a str),
+    File(&'a Path),
 }
 
 pub async fn uget_with_headers<K, V>(s: &str, headers: HashMap<K, V>) -> Result<Vec<u8>, UReadError>
@@ -22,44 +31,40 @@ where
     HeaderValue: TryFrom<V>,
     <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
 {
-    let uri = uri_parse(s)?;
-    match uri.scheme_str() {
-        Some("file") => file(uri).await,
-        Some("http") => http(uri, http_client(), headers).await,
-        Some("https") => http(uri, https_client(), headers).await,
-        Some("base64") => b64(uri),
+    match uri_parse(s) {
+        Some(Scheme::File(path)) => file(path).await,
+        Some(Scheme::Http(uri)) => http(uri, http_client(), headers).await,
+        Some(Scheme::Https(uri)) => http(uri, https_client(), headers).await,
+        Some(Scheme::Base64(s)) => b64(s),
         // Some("ftp") => todo!(),
-        Some(scheme) => Err(UReadError::UnsupportedScheme(scheme.to_string())),
         None => Err(UReadError::EmptyScheme),
     }
 }
 
-pub fn uri_parse(s: &str) -> Result<Uri, UReadError> {
-    // uri crate didn't parse `file:///` as a scheme.
-    // use path() to get path.
-    Uri::from_str(&s.replace("file:///", "file://_/")).map_err(UReadError::Uri)
+pub fn uri_parse<'a>(s: &'a str) -> Option<Scheme<'a>> {
+    if let Some(b64) = s.strip_prefix("base64://") {
+        Some(Scheme::Base64(b64))
+    } else if let Some(file) = s.strip_prefix("file:///") {
+        Some(Scheme::File(Path::new(file)))
+    } else if let Ok(uri) = Uri::from_str(s) {
+        match uri.scheme_str() {
+            Some("http") => Some(Scheme::Http(uri)),
+            Some("https") => Some(Scheme::Https(uri)),
+            _ => None,
+        }
+    } else {
+        None
+    }
 }
 
-pub fn b64(uri: Uri) -> Result<Vec<u8>, UReadError> {
-    base64::decode(uri.authority().map(|a| a.as_str()).unwrap_or("")).map_err(UReadError::Base64)
+pub fn b64(s: &str) -> Result<Vec<u8>, UReadError> {
+    base64::decode(s).map_err(UReadError::Base64)
 }
 
-pub async fn file(uri: Uri) -> Result<Vec<u8>, UReadError> {
+pub async fn file(path: &Path) -> Result<Vec<u8>, UReadError> {
     use tokio::{fs::File, io::AsyncReadExt};
-    let path = uri2path(&uri);
     let mut file = File::open(path).await?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf).await?;
     Ok(buf)
-}
-
-fn uri2path(uri: &Uri) -> std::path::PathBuf {
-    match uri.authority().and_then(|a| Some(a.as_str())) {
-        Some("_") | None => std::path::PathBuf::from(&uri.path()[1..]),
-        Some(a) => {
-            let mut path = std::path::PathBuf::from(a);
-            path.push(uri.path());
-            path
-        }
-    }
 }
