@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::Error as HttpError;
+use hyper::StatusCode;
 use hyper::{client::HttpConnector, Body, Client, Request, Uri};
 use hyper_tls::HttpsConnector;
+
+use crate::UReadError;
 
 pub(crate) fn http_client() -> Client<HttpConnector, Body> {
     Client::new()
@@ -17,7 +20,7 @@ pub async fn http<T, K, V>(
     uri: Uri,
     cli: Client<T>,
     headers: HashMap<K, V>,
-) -> Result<Vec<u8>, crate::UReadError>
+) -> Result<Vec<u8>, UReadError>
 where
     T: hyper::client::connect::Connect + Clone + Send + Sync + 'static,
     HeaderName: TryFrom<K>,
@@ -31,8 +34,11 @@ where
     }
     let req = builder.body(Body::empty()).unwrap();
     let resp = cli.request(req).await?;
-    hyper::body::to_bytes(resp.into_body())
-        .await
-        .map(|b| b.to_vec())
-        .map_err(crate::UReadError::Hyper)
+    match resp.status() {
+        StatusCode::OK => hyper::body::to_bytes(resp.into_body())
+            .await
+            .map(|b| b.to_vec())
+            .map_err(UReadError::Hyper),
+        code => Err(UReadError::HttpStatus(code)),
+    }
 }

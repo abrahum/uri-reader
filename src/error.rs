@@ -1,3 +1,4 @@
+use hyper::StatusCode;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,6 +11,8 @@ pub enum UReadError {
     Base64(#[from] base64::DecodeError),
     #[error("{0}")]
     Hyper(#[from] hyper::Error),
+    #[error("{0}")]
+    HttpStatus(StatusCode),
 
     #[error("Unsupported scheme: {0}")]
     UnsupportedScheme(String),
