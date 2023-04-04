@@ -5,7 +5,9 @@ mod http;
 mod test;
 
 pub use error::UReadError;
-use http::{http, http_client, https_client};
+#[cfg(any(feature = "tls", feature = "rustls"))]
+use http::https_client;
+use http::{http, http_client};
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::Error as HttpError;
 use hyper::Uri;
@@ -34,7 +36,10 @@ where
     match uri_parse(s) {
         Some(Scheme::File(path)) => file(path).await,
         Some(Scheme::Http(uri)) => http(uri, http_client(), headers).await,
+        #[cfg(any(feature = "tls", feature = "rustls"))]
         Some(Scheme::Https(uri)) => http(uri, https_client(), headers).await,
+        #[cfg(not(any(feature = "tls", feature = "rustls")))]
+        Some(Scheme::Https(_)) => Err(UReadError::HttpsDisabled),
         Some(Scheme::Base64(s)) => b64(s),
         // Some("ftp") => todo!(),
         None => Err(UReadError::EmptyScheme),

@@ -18,4 +18,6 @@ pub enum UReadError {
     UnsupportedScheme(String),
     #[error("Empty scheme")]
     EmptyScheme,
+    #[error("Https disabled")]
+    HttpsDisabled
 }

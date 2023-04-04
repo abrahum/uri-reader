@@ -5,6 +5,7 @@ fn uri_test() {
     println!("{:?}", uri_parse("base64://abababab").unwrap());
 }
 
+#[cfg(test)]
 #[tokio::test]
 async fn uri_get_test() {
     use super::*;

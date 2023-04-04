@@ -11,9 +11,9 @@ pub(crate) fn http_client() -> Client<HttpConnector, Body> {
     Client::new()
 }
 
-#[cfg(not(feature = "rustls"))]
+#[cfg(feature = "tls")]
 use hyper_tls::HttpsConnector;
-#[cfg(not(feature = "rustls"))]
+#[cfg(feature = "tls")]
 pub(crate) fn https_client() -> Client<HttpsConnector<HttpConnector>, Body> {
     Client::builder().build::<_, Body>(HttpsConnector::new())
 }
