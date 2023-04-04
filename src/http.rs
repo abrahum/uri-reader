@@ -4,7 +4,6 @@ use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::Error as HttpError;
 use hyper::StatusCode;
 use hyper::{client::HttpConnector, Body, Client, Request, Uri};
-use hyper_tls::HttpsConnector;
 
 use crate::UReadError;
 
@@ -12,8 +11,24 @@ pub(crate) fn http_client() -> Client<HttpConnector, Body> {
     Client::new()
 }
 
+#[cfg(not(feature = "rustls"))]
+use hyper_tls::HttpsConnector;
+#[cfg(not(feature = "rustls"))]
 pub(crate) fn https_client() -> Client<HttpsConnector<HttpConnector>, Body> {
     Client::builder().build::<_, Body>(HttpsConnector::new())
+}
+
+#[cfg(feature = "rustls")]
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+#[cfg(feature = "rustls")]
+pub(crate) fn https_client() -> Client<HttpsConnector<HttpConnector>, Body> {
+    Client::builder().build::<_, Body>(
+        HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .https_or_http()
+            .enable_http1()
+            .build(),
+    )
 }
 
 pub async fn http<T, K, V>(

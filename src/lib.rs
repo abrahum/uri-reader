@@ -58,7 +58,10 @@ pub fn uri_parse<'a>(s: &'a str) -> Option<Scheme<'a>> {
 }
 
 pub fn b64(s: &str) -> Result<Vec<u8>, UReadError> {
-    base64::decode(s).map_err(UReadError::Base64)
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD_NO_PAD
+        .decode(s)
+        .map_err(UReadError::Base64)
 }
 
 pub async fn file(path: &Path) -> Result<Vec<u8>, UReadError> {
